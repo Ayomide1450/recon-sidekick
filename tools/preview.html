@@ -1,0 +1,183 @@
+<!doctype html>
+<!--
+  Screenshot / design harness.
+
+  This loads the REAL dashboard.js and the REAL stylesheets, and stubs only the
+  chrome.runtime message layer with fixture data. That means what you see here is
+  genuinely the shipped UI, not a mockup of it — but the data is invented, and the
+  hostnames are RFC 2606 example domains so nothing here implies a real target was
+  tested.
+
+  Serve over HTTP (ES modules are blocked on file://):
+      node tools/serve.mjs
+      open http://localhost:8731/tools/preview.html
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recon Sidekick — preview</title>
+    <link rel="stylesheet" href="../src/ui/shared.css" />
+    <link rel="stylesheet" href="../src/dashboard/dashboard.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h1>Recon Sidekick</h1>
+        <div class="faint" style="font-size: 11px">local only · passive</div>
+      </div>
+      <nav id="program-list" class="program-list"></nav>
+      <div class="sidebar-foot">
+        <div id="storage-line" class="faint" style="font-size: 11px"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main-head">
+        <div class="row spread">
+          <div class="grow">
+            <h2 id="program-name">No program selected</h2>
+            <div id="program-hosts" class="mono faint" style="font-size: 11px"></div>
+          </div>
+          <div class="row" id="head-actions"></div>
+        </div>
+        <div class="tabs" id="tabs"></div>
+      </header>
+
+      <section id="view" class="view"></section>
+    </main>
+
+    <script>
+      // ---- fixture data -------------------------------------------------
+      const DAY = 86400000;
+      const now = Date.parse('2026-11-03T14:20:00Z');
+      const visit1 = now - 31 * DAY;
+      const visit2 = now - 8 * DAY;
+      const visit3 = now - 40 * 60 * 1000;
+
+      let seq = 0;
+      const mk = (kind, value, opts = {}) => ({
+        id: `p1|${kind}|${value}|${seq++}`,
+        programId: 'p1',
+        kind,
+        value,
+        raw: value,
+        source: opts.source || 'mined',
+        reached: opts.reached || false,
+        dismissed: false,
+        firstSeen: opts.firstSeen ?? visit1,
+        lastSeen: opts.firstSeen ?? visit1,
+        hits: opts.hits || 1,
+        interest: opts.interest || 0,
+        foundIn: opts.foundIn,
+      });
+
+      const OBSERVATIONS = [
+        // Unreached, high interest — the headline rows.
+        mk('endpoint', '/api/internal/impersonate', { interest: 9, firstSeen: visit3, foundIn: '/static/js/main.c4f2.js' }),
+        mk('endpoint', '/api/v1/admin/export', { interest: 8, firstSeen: visit3 }),
+        mk('route', '/admin/billing/refunds', { interest: 6, firstSeen: visit2 }),
+        mk('endpoint', '/api/v0/legacy/users/{id}', { interest: 6, firstSeen: visit1 }),
+        mk('flag', 'billing.bulk_refund', { interest: 5, firstSeen: visit3 }),
+        mk('endpoint', '/api/v2/webhooks/{id}/secret', { interest: 5, firstSeen: visit2 }),
+        mk('role', 'ROLE_SUPERUSER', { interest: 6, firstSeen: visit2 }),
+        mk('gqlop', 'ImpersonateUser', { interest: 6, firstSeen: visit3 }),
+        mk('route', '/settings/debug', { interest: 4, firstSeen: visit1 }),
+        mk('endpoint', '/api/v2/orgs/{id}/invite', { interest: 3, firstSeen: visit2 }),
+        mk('flag', 'admin.export_all', { interest: 4, firstSeen: visit2 }),
+        mk('endpoint', '/api/v2/reports/{id}/download', { interest: 2, firstSeen: visit1 }),
+        mk('gqlop', 'BulkRefundOrders', { interest: 4, firstSeen: visit3 }),
+        mk('route', '/orgs/{id}/members', { interest: 1, firstSeen: visit1 }),
+
+        // Reached — these came from runtime observation.
+        mk('endpoint', 'GET app.example.com/api/v2/users/{id}', { source: 'runtime', reached: true, hits: 42, firstSeen: visit1 }),
+        mk('endpoint', 'POST app.example.com/api/v2/sessions', { source: 'runtime', reached: true, hits: 7, firstSeen: visit1 }),
+        mk('endpoint', 'GET app.example.com/api/v2/orgs/{id}', { source: 'runtime', reached: true, hits: 18, firstSeen: visit1 }),
+        mk('route', '/dashboard', { source: 'runtime', reached: true, hits: 23, firstSeen: visit1 }),
+        mk('route', '/settings/profile', { source: 'runtime', reached: true, hits: 4, firstSeen: visit2 }),
+      ];
+
+      const SESSIONS = [
+        { id: 1, programId: 'p1', startedAt: visit1, endedAt: visit1 + 95 * 60000 },
+        { id: 2, programId: 'p1', startedAt: visit2, endedAt: visit2 + 50 * 60000 },
+        { id: 3, programId: 'p1', startedAt: visit3, endedAt: now },
+      ];
+
+      const EVENTS = [
+        { id: 1, programId: 'p1', at: visit3 + 60000, type: 'asset-changed',
+          detail: 'https://app.example.com/static/js/main.c4f2.js', from: 'a81f3c-2e41a', to: 'c4f2b9-31d07' },
+        { id: 2, programId: 'p1', at: visit2 + 120000, type: 'asset-changed',
+          detail: 'https://app.example.com/static/js/vendor.91ab.js', from: '55c1de-19f22', to: '91ab07-1a003' },
+      ];
+
+      const PROGRAMS = [
+        { id: 'p1', name: 'Example Corp', hosts: ['*.example.com'], enabled: true, createdAt: visit1 },
+        { id: 'p2', name: 'Acme Labs', hosts: ['*.example.net', 'api.example.org'], enabled: true, createdAt: visit2 },
+        { id: 'p3', name: 'Old Program', hosts: ['*.example.edu'], enabled: false, createdAt: visit1 },
+      ];
+
+      // ---- chrome stub ---------------------------------------------------
+      // Only the message boundary is faked. Everything rendered below is produced by
+      // the real dashboard.js running against the real diff engine semantics.
+      const handlers = {
+        'programs:list': () => PROGRAMS,
+        'program:stats': () => ({
+          counts: { observations: OBSERVATIONS.length, assets: 6, events: EVENTS.length, sessions: SESSIONS.length },
+          usage: { usage: 418 * 1024, quota: 0 },
+        }),
+        'notes:get': () => ({ programId: 'p1', text: '', updatedAt: null }),
+        'view:unreached': () =>
+          OBSERVATIONS.filter((o) => o.source === 'mined' && !o.reached && !o.dismissed)
+            .sort((a, b) => b.interest - a.interest || b.firstSeen - a.firstSeen),
+        'view:surface': () =>
+          [...OBSERVATIONS].sort((a, b) => b.interest - a.interest || a.value.localeCompare(b.value)),
+        'view:timeline': () =>
+          [...SESSIONS].sort((a, b) => a.startedAt - b.startedAt).map((session, index, all) => {
+            const prev = index > 0 ? all[index - 1] : null;
+            const appeared = OBSERVATIONS.filter(
+              (o) => o.firstSeen >= session.startedAt && o.firstSeen <= (session.endedAt ?? Date.now()),
+            ).sort((a, b) => b.interest - a.interest);
+            const counts = {};
+            for (const o of appeared) counts[o.kind] = (counts[o.kind] || 0) + 1;
+            return {
+              sessionId: session.id,
+              startedAt: session.startedAt,
+              endedAt: session.endedAt,
+              gapSincePrevious: prev ? session.startedAt - prev.endedAt : null,
+              isFirstVisit: !prev,
+              counts,
+              appeared,
+              changes: EVENTS.filter((e) => e.at >= session.startedAt && e.at <= (session.endedAt ?? Date.now())),
+            };
+          }).reverse(),
+      };
+
+      window.chrome = {
+        runtime: {
+          lastError: null,
+          sendMessage(message, callback) {
+            const handler = handlers[message.type];
+            setTimeout(() => {
+              callback(handler ? { ok: true, data: handler(message) } : { ok: true, data: null });
+            }, 0);
+          },
+        },
+      };
+    </script>
+    <script type="module" src="../src/dashboard/dashboard.js"></script>
+    <script>
+      // ?view=timeline selects a tab once the dashboard has rendered, so the headless
+      // screenshot run can capture views other than the default without interaction.
+      const wanted = new URLSearchParams(location.search).get('view');
+      if (wanted) {
+        const tick = setInterval(() => {
+          const tab = [...document.querySelectorAll('.tab')]
+            .find((b) => b.textContent.trim().toLowerCase() === wanted.toLowerCase());
+          if (tab) {
+            clearInterval(tick);
+            tab.click();
+          }
+        }, 50);
+      }
+    </script>
+  </body>
+</html>

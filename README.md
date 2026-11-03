@@ -3,6 +3,18 @@
 A Chrome extension that keeps a durable, local memory of a bug bounty target's client
 surface — and shows you the two things no other tool does.
 
+![The Unreached view](docs/img/unreached.png)
+
+*Unreached — surface the app's own JavaScript declares that your browsing never touched,
+sorted by how interesting it looks.*
+
+![The Timeline view](docs/img/timeline.png)
+
+*Timeline — what appeared and what changed on each visit, including bundle hash changes.*
+
+> Screenshots show the real UI rendered with **sample data** via `tools/preview.html`.
+> The hostnames are reserved example domains; no real target was tested to produce them.
+
 ## Why
 
 Every tool in a manual hunter's kit is stateless. Burp's sitemap, endpoint scrapers, DOM
@@ -105,8 +117,13 @@ snapshot history and no unbounded storage growth.
 ## Develop
 
 ```
-npm test        # 64 tests, no dependencies
+npm test              # 64 tests, no dependencies
+node tools/serve.mjs  # then open http://localhost:8731/tools/preview.html
 ```
+
+`tools/preview.html` loads the real dashboard code against fixture data, which makes it
+useful for working on the UI without arming a live target. Append `?view=timeline`
+(or `surface`, `notes`) to open a specific tab.
 
 Pure logic lives in `src/lib/` and is fully unit tested — normalization, the rule pack,
 and the diff engine. The page agent has an integration test that runs the real file in a
