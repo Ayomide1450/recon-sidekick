@@ -118,3 +118,7 @@ Design doc: `docs/superpowers/specs/2026-11-03-recon-sidekick-design.md`
 
 Only point this at targets you are authorized to test. It is passive, but scope is your
 responsibility — the arming step exists partly to make you state it deliberately.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

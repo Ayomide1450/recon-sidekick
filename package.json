@@ -4,6 +4,7 @@
   "description": "A Chrome extension that keeps a durable local memory of a bug bounty target's client surface, and shows what changed since last time and what you never reached.",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "test": "node --test \"test/*.test.js\""
   }
