@@ -76,6 +76,13 @@ an isolated-world relay, which passes them to the service worker.
 **Bundle miner** — service worker. On seeing a JS asset for an armed host, fetches from
 cache, hashes it, runs the rule pack, records candidates as `source: "mined"`.
 
+*Revision (post-implementation):* script discovery originally used the `webRequest`
+permission. It now uses the page agent's own `PerformanceObserver` on resource timing
+(`buffered: true`, so scripts loaded before the observer attached are replayed). Same
+information, one fewer permission — and the one removed was the most likely to draw
+Chrome Web Store review scrutiny on a security tool. The extension now requests no
+network-observation permission at all.
+
 *Deviation from original design:* mining runs in the service worker, not an offscreen
 document. Regex over a multi-megabyte bundle is a few hundred milliseconds; the extra
 component and message plumbing is not justified. The miner is a pure function and can be

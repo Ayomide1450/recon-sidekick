@@ -70,6 +70,26 @@ function makePage({ postMessageThrows = false, href = 'https://app.target.com/da
     },
   };
 
+  // Resource timing stub. `observe({buffered:true})` must replay these, the way a real
+  // PerformanceObserver replays entries recorded before it attached.
+  const resourceEntries = [
+    { name: 'https://app.target.com/static/js/main.a81f.js', initiatorType: 'script' },
+    { name: 'https://cdn.example.net/vendor.91ab.js', initiatorType: 'script' },
+    { name: 'https://app.target.com/static/img/logo.png', initiatorType: 'img' },
+    { name: 'https://app.target.com/api/xhr-call', initiatorType: 'xmlhttprequest' },
+  ];
+  let observedOptions = null;
+
+  class PerformanceObserver {
+    constructor(callback) { this.callback = callback; }
+    observe(options) {
+      observedOptions = options;
+      if (options?.buffered) {
+        this.callback({ getEntries: () => resourceEntries });
+      }
+    }
+  }
+
   const context = {
     window,
     XMLHttpRequest,
@@ -78,6 +98,8 @@ function makePage({ postMessageThrows = false, href = 'https://app.target.com/da
     URL,
     Object,
     Symbol,
+    PerformanceObserver,
+    performance: { getEntriesByType: () => resourceEntries },
     setTimeout(fn) { timers.push(fn); return timers.length; },
     clearTimeout() {},
     console,
@@ -94,6 +116,7 @@ function makePage({ postMessageThrows = false, href = 'https://app.target.com/da
     nativeCalls,
     nativeFetchResult,
     listeners,
+    get observedOptions() { return observedOptions; },
     /** Fire every pending batch timer, which is what flushes observations. */
     flush() {
       const pending = timers.splice(0);
@@ -253,6 +276,47 @@ test('messages are posted to the page origin, not a wildcard', () => {
   // The agent passes window.location.origin as targetOrigin; a wildcard would leak
   // observations to any listener.
   assert.ok(page.posted.length > 0);
+});
+
+// ---------------------------------------------------------------------------
+// Script discovery via resource timing — this is what replaces the webRequest
+// permission, so it needs to actually find the bundles.
+// ---------------------------------------------------------------------------
+
+test('discovers script resources without any webRequest permission', () => {
+  const page = makePage();
+  page.run();
+  page.flush();
+
+  const scripts = items(page).filter((i) => i.type === 'script').map((i) => i.url);
+  assert.ok(scripts.includes('https://app.target.com/static/js/main.a81f.js'));
+  assert.ok(scripts.includes('https://cdn.example.net/vendor.91ab.js'));
+});
+
+test('replays entries buffered from before the observer attached', () => {
+  const page = makePage();
+  page.run();
+  // Without buffered:true, scripts loaded during document_start are invisible — which
+  // is most of them.
+  assert.equal(page.observedOptions?.buffered, true);
+  assert.equal(page.observedOptions?.type, 'resource');
+});
+
+test('non-script resources are not reported for mining', () => {
+  const page = makePage();
+  page.run();
+  page.flush();
+
+  const scripts = items(page).filter((i) => i.type === 'script').map((i) => i.url);
+  assert.ok(!scripts.some((url) => url.endsWith('.png')), 'images must not be mined');
+  assert.ok(!scripts.includes('https://app.target.com/api/xhr-call'), 'XHR is not a script');
+});
+
+test('a missing PerformanceObserver degrades quietly', () => {
+  const page = makePage();
+  delete page.context.PerformanceObserver;
+  assert.doesNotThrow(() => page.run());
+  assert.doesNotThrow(() => page.flush());
 });
 
 test('fetch keeps its native toString, so feature detection still works', () => {

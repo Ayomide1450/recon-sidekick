@@ -75,6 +75,9 @@ function pump() {
 
 /**
  * Consider a script URL for mining. Gated on armed scope and deduplicated.
+ *
+ * Script URLs arrive from the page agent's resource-timing observer, not from
+ * webRequest — the extension requests no network-observation permission at all.
  */
 export async function considerAsset(url, initiatorUrl) {
   if (!isMinableScript(url)) return;

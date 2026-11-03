@@ -14,6 +14,7 @@
   const CHANNEL = 'recon-sidekick:observations';
   const MAX_ITEMS = 500;
   const MAX_URL_LENGTH = 2048;
+  const ALLOWED_TYPES = new Set(['endpoint', 'route', 'script']);
 
   function sanitize(items) {
     if (!Array.isArray(items)) return [];
@@ -22,7 +23,7 @@
       if (!item || typeof item !== 'object') continue;
       const url = typeof item.url === 'string' ? item.url.slice(0, MAX_URL_LENGTH) : null;
       if (!url) continue;
-      const type = item.type === 'route' ? 'route' : 'endpoint';
+      const type = ALLOWED_TYPES.has(item.type) ? item.type : 'endpoint';
       const method =
         typeof item.method === 'string' ? item.method.slice(0, 16).toUpperCase() : 'GET';
       // Only these three fields ever cross the boundary. Anything else the page tried

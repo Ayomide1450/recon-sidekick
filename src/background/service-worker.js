@@ -33,20 +33,6 @@ async function bootstrap() {
 chrome.permissions.onAdded?.addListener(() => { void syncContentScripts(); });
 chrome.permissions.onRemoved?.addListener(() => { void syncContentScripts(); });
 
-/**
- * Script discovery. webRequest in MV3 is observe-only (no blocking) which is exactly
- * what we want: it tells us which JS the page loaded without us influencing anything.
- */
-if (chrome.webRequest?.onCompleted) {
-  chrome.webRequest.onCompleted.addListener(
-    (details) => {
-      if (details.type !== 'script') return;
-      void considerAsset(details.url, details.initiator || details.documentUrl);
-    },
-    { urls: ['http://*/*', 'https://*/*'], types: ['script'] },
-  );
-}
-
 /** Reflect armed state in the toolbar icon so scope mistakes are visible, not silent. */
 async function refreshActionForTab(tabId, url) {
   try {
@@ -84,7 +70,19 @@ const handlers = {
   async 'observations:report'({ items }, sender) {
     const pageUrl = sender?.url || sender?.tab?.url;
     if (!pageUrl) return { stored: 0 };
-    return recordRuntime(items, pageUrl);
+
+    // Script sightings come from the page's resource timing rather than webRequest.
+    // They are not observations in their own right — they are input to the miner.
+    const scripts = [];
+    const observations = [];
+    for (const item of items || []) {
+      if (item?.type === 'script') scripts.push(item.url);
+      else observations.push(item);
+    }
+
+    for (const url of scripts) void considerAsset(url, pageUrl);
+
+    return recordRuntime(observations, pageUrl);
   },
 
   async 'programs:list'() {

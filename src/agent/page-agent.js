@@ -154,6 +154,40 @@
     // Ignore.
   }
 
+  // -------------------------------------------------------------------------
+  // Script discovery
+  // -------------------------------------------------------------------------
+  // Resource timing tells us which scripts the page loaded, which is everything the
+  // bundle miner needs. Reading it here means the extension does not need the
+  // `webRequest` permission at all — a meaningful reduction in what the user has to
+  // trust, and in what a Web Store reviewer has to take on faith.
+  //
+  // `buffered: true` replays entries recorded before this observer attached, so scripts
+  // that loaded during document_start are not missed.
+  function recordScripts(entries) {
+    try {
+      for (const entry of entries) {
+        if (entry.initiatorType !== 'script' && entry.initiatorType !== 'link') continue;
+        if (!entry.name) continue;
+        record({ type: 'script', url: entry.name });
+      }
+    } catch {
+      // Ignore.
+    }
+  }
+
+  try {
+    if (typeof PerformanceObserver === 'function') {
+      const observer = new PerformanceObserver((list) => recordScripts(list.getEntries()));
+      observer.observe({ type: 'resource', buffered: true });
+    } else if (performance?.getEntriesByType) {
+      // Fall back to a one-shot read on very old engines.
+      recordScripts(performance.getEntriesByType('resource'));
+    }
+  } catch {
+    // Resource timing is unavailable or restricted; mining simply gets no input.
+  }
+
   // Record the landing route, and make sure a pending batch is not lost on unload.
   recordRoute();
   try {

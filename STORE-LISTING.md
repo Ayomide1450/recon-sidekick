@@ -104,14 +104,6 @@ they are on is armed, and to reload the tab after arming so recording can begin.
 URLs are used for this scope check only and tabs on unarmed hosts are never recorded.
 ```
 
-### `webRequest`
-```
-Used in observe-only mode to learn which JavaScript files an armed page loaded, so those
-bundles can be analysed for the routes and endpoints the application declares. No
-blocking, redirecting, or modification of any request occurs; the extension never alters
-network traffic.
-```
-
 ### Host permissions (`*://*/*`, optional)
 ```
 Declared as OPTIONAL, never granted by default. The extension cannot request a specific
@@ -146,9 +138,10 @@ All collected data remains in local browser storage and is never transmitted.
 1. **Load it unpacked and use it on a real target first.** The runtime path has not been
    exercised end to end. Shipping untested code to a store with multi-day review cycles
    is the expensive way to find a bug.
-2. Expect review friction on the broad optional host permission and on `webRequest`.
-   Both are justified above, but reviews of security tooling tend to be slow and may come
-   back with questions. Answer them with the justifications above.
+2. Expect review friction on the broad optional host permission. It is justified above,
+   but reviews of security tooling tend to be slow and may come back with questions.
+   The extension deliberately avoids `webRequest` — script discovery uses the page's own
+   resource timing instead — so host access is the only item likely to draw scrutiny.
 3. Consider whether you want this publicly associated with your bug bounty handle before
    publishing under your real name.
 

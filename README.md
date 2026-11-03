@@ -45,7 +45,8 @@ Recon Sidekick answers both by watching your own normal browsing.
 
 ## What it does not do
 
-It is a notebook, not a scanner.
+It is a notebook, not a scanner. It asks for four permissions — `storage`, `scripting`,
+`tabs`, `unlimitedStorage` — and no network-observation permission at all.
 
 - It never sends a request to a target. The only fetch it performs is a cache re-read of
   JavaScript the browser already downloaded.
@@ -86,8 +87,9 @@ Five pieces:
   Content scripts are *not* declared in the manifest; they are registered dynamically for
   armed origins only, so the extension has no ability to observe anything else.
 - **Page agent** (`src/agent/page-agent.js`) — MAIN-world script that wraps `fetch` and
-  `XMLHttpRequest` and listens to history events. Written so it cannot break a host page:
-  every wrapper passes through untouched and swallows its own errors.
+  `XMLHttpRequest`, listens to history events, and reads resource timing to find the
+  page's scripts. Written so it cannot break a host page: every wrapper passes through
+  untouched and swallows its own errors.
 - **Collector** (`src/background/collector.js`) — normalizes, dedupes, persists. All
   privacy invariants are enforced here.
 - **Miner** (`src/background/miner.js`, `src/lib/mine.js`) — pattern-mines JS bundles for
