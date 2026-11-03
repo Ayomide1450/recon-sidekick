@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recon Sidekick</title>
+    <link rel="stylesheet" href="../ui/shared.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h1>Recon Sidekick</h1>
+        <div class="faint" style="font-size: 11px">local only · passive</div>
+      </div>
+      <nav id="program-list" class="program-list"></nav>
+      <div class="sidebar-foot">
+        <div id="storage-line" class="faint" style="font-size: 11px"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main-head">
+        <div class="row spread">
+          <div class="grow">
+            <h2 id="program-name">No program selected</h2>
+            <div id="program-hosts" class="mono faint" style="font-size: 11px"></div>
+          </div>
+          <div class="row" id="head-actions"></div>
+        </div>
+        <div class="tabs" id="tabs"></div>
+      </header>
+
+      <section id="view" class="view">
+        <div class="empty">Arm a target from the toolbar popup to get started.</div>
+      </section>
+    </main>
+
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>

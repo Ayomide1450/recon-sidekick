@@ -1,0 +1,60 @@
+body { width: 380px; max-height: 560px; overflow-y: auto; }
+
+.pop-header {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.pop-header h1 { font-size: 13px; letter-spacing: 0.02em; }
+
+.scope-line {
+  margin-top: 4px;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scope-line.armed { color: var(--green); }
+.scope-line.unarmed { color: var(--text-faint); }
+
+main { padding: 12px; }
+
+.headline {
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.headline.none { color: var(--text-faint); font-size: 15px; font-weight: 500; }
+.headline .unit { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+
+.sub { margin-top: 2px; color: var(--text-dim); font-size: 12px; }
+
+.kinds { margin-top: 10px; gap: 5px; }
+
+.top-list {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.top-list .item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.top-list .item:last-child { border-bottom: none; }
+.top-list .item .val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.actions { margin-top: 12px; gap: 6px; }
+
+.arm-form { margin-top: 10px; display: grid; gap: 7px; }
+.arm-form label { font-size: 11px; color: var(--text-dim); }
+.hint { font-size: 11px; color: var(--text-faint); }

@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Recon Sidekick",
+  "version": "0.1.0",
+  "description": "Durable local memory of a target's client surface. Shows what changed since last time, and what you never reached.",
+  "minimum_chrome_version": "111",
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Recon Sidekick",
+    "default_icon": {
+      "16": "src/icons/icon-16.png",
+      "32": "src/icons/icon-32.png",
+      "128": "src/icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "src/icons/icon-16.png",
+    "32": "src/icons/icon-32.png",
+    "128": "src/icons/icon-128.png"
+  },
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs",
+    "webRequest",
+    "unlimitedStorage"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
+  "web_accessible_resources": [],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "recon-sidekick",
+  "version": "0.1.0",
+  "description": "A Chrome extension that keeps a durable local memory of a bug bounty target's client surface, and shows what changed since last time and what you never reached.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  }
+}
