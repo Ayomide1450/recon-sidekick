@@ -6,6 +6,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "package": "node tools/package.mjs"
   }
 }
