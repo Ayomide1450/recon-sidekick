@@ -3,10 +3,15 @@
 A Chrome extension that keeps a durable, local memory of a bug bounty target's client
 surface — and shows you the two things no other tool does.
 
+![The Overview](docs/img/overview.png)
+
+*Overview — a plain-language read of the target: coverage, where untested surface clusters,
+and callouts for what to look at first.*
+
 ![The Unreached view](docs/img/unreached.png)
 
 *Unreached — surface the app's own JavaScript declares that your browsing never touched,
-sorted by how interesting it looks.*
+sorted by interest. Click any score to see exactly why it ranked where it did.*
 
 ![The Timeline view](docs/img/timeline.png)
 
@@ -35,13 +40,20 @@ Recon Sidekick answers both by watching your own normal browsing.
 
 ## What it does
 
+- **Overview** — a plain-language read of the target. How much of the declared surface
+  you have exercised, where the untested surface clusters (`/admin` ×31, `/api/billing`
+  ×6), and specific callouts: unreached admin areas, impersonation endpoints, legacy API
+  versions, internal feature flags. The screen that tells you *what to do next*.
+- **Unreached** — surface mined from the bundle that your browsing never reached, sorted
+  by interest. Click any score to see the reasons behind it — it is a ranking heuristic,
+  not a verdict, and it says so.
 - **Timeline** — per target, reverse-chronological. *Last seen 23 days ago. +3 endpoints,
   1 new feature flag, `main.a81f.js` changed.*
-- **Unreached** — surface mined from the bundle that your browsing never reached, sorted
-  by how interesting it looks. The headline view.
 - **Surface** — the full searchable inventory, exportable to JSON or line-per-value for
   wordlists.
 - **Notes** — free text per target, because findings-in-progress need somewhere to live.
+
+Every view carries a one-line explanation of what it is for, so the tool teaches itself.
 
 ## What it does not do
 

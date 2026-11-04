@@ -132,6 +132,19 @@ export async function upsertObservations(records, merge) {
   return written;
 }
 
+/** Apply a set of deletes and puts to one store in a single transaction. */
+export async function applyBatch(storeName, { deletes = [], puts = [] }) {
+  if (!deletes.length && !puts.length) return 0;
+  const db = await openDb();
+  const { transaction, done } = tx(db, [storeName], 'readwrite');
+  const store = transaction.objectStore(storeName);
+  // No awaits inside the write phase — see the note in upsertObservations.
+  for (const key of deletes) store.delete(key);
+  for (const value of puts) store.put(value);
+  await done;
+  return deletes.length + puts.length;
+}
+
 export async function deleteByProgram(storeName, programId) {
   const db = await openDb();
   const { transaction, done } = tx(db, [storeName], 'readwrite');

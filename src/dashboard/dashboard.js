@@ -7,10 +7,28 @@ const KINDS = ['endpoint', 'route', 'flag', 'role', 'gqlop'];
 const state = {
   programs: [],
   programId: null,
-  tab: 'unreached',
+  tab: 'overview',
   kindFilter: null,
   search: '',
 };
+
+// Plain-language help per view. Mirrors VIEW_HELP in src/lib/summary.js; kept here too
+// so the dashboard has no dependency on the background being reachable just to render
+// its own help text.
+const VIEW_HELP = {
+  overview: 'A plain-language read of this target: how much of its surface you have covered, '
+    + 'where the untested surface clusters, and what is worth looking at first.',
+  unreached: 'Paths and identifiers the app\'s own JavaScript declares that your browsing '
+    + 'never reached. Mined from the bundle, so some rows are noise — dismiss them and they '
+    + 'stay gone. The score is a rough ranking, not a verdict; click it to see why.',
+  timeline: 'What appeared and what changed on each visit, newest first. A long gap followed '
+    + 'by new endpoints means the developers shipped code you have not seen.',
+  surface: 'The complete inventory for this target — everything reached and everything mined. '
+    + 'Searchable and exportable, for feeding into your own notes or wordlists.',
+  notes: 'Free-text working notes, saved locally against this target.',
+};
+
+const TONE_LABEL = { hot: 'look here', warn: 'heads up', info: 'note' };
 
 const nodes = {
   programList: document.getElementById('program-list'),
@@ -105,6 +123,7 @@ function renderHeader() {
   );
 
   for (const [key, label] of [
+    ['overview', 'Overview'],
     ['unreached', 'Unreached'],
     ['timeline', 'Timeline'],
     ['surface', 'Surface'],
@@ -140,7 +159,12 @@ function observationRow(obs, { actions = true } = {}) {
       text: obs.value,
       title: obs.foundIn ? `found in ${obs.foundIn}` : obs.raw || obs.value,
     }),
-    el('span', { class: 'score', text: obs.interest ? `+${obs.interest}` : '' }),
+    el('span', {
+      class: `score${obs.reasons?.length ? ' explainable' : ''}`,
+      text: obs.interest ? `+${obs.interest}` : '',
+      title: obs.reasons?.length ? 'why this score?' : '',
+      onclick: obs.reasons?.length ? (event) => toggleScoreWhy(event, obs) : undefined,
+    }),
   ]);
 
   if (actions) {
@@ -169,6 +193,36 @@ function observationRow(obs, { actions = true } = {}) {
   }
 
   return row;
+}
+
+/** Expand or collapse a small "why this score" panel under a row. */
+function toggleScoreWhy(event, obs) {
+  event.stopPropagation();
+  const row = event.target.closest('.obs');
+  const existing = row.nextElementSibling;
+  if (existing?.classList.contains('why')) {
+    existing.remove();
+    return;
+  }
+  const panel = el('div', { class: 'why' }, [
+    el('div', { class: 'why-head', text: `interest +${obs.interest}, because:` }),
+    el('ul', {}, obs.reasons.map((reason) =>
+      el('li', {}, [
+        el('span', { class: 'why-weight', text: `+${reason.weight}` }),
+        el('span', { text: reason.label }),
+      ]),
+    )),
+    el('div', { class: 'why-foot faint', text: 'A ranking heuristic, not a verdict. Verify by hand.' }),
+  ]);
+  row.after(panel);
+}
+
+/** A dismissable help banner explaining what the current view is for. */
+function helpBanner(key) {
+  return el('div', { class: 'help' }, [
+    el('span', { class: 'help-icon', text: '?' }),
+    el('span', { class: 'grow', text: VIEW_HELP[key] || '' }),
+  ]);
 }
 
 function filterToolbar(extra = []) {
@@ -232,15 +286,85 @@ function copyButton(rows) {
 // Views
 // ---------------------------------------------------------------------------
 
+async function renderOverview() {
+  const s = await send('view:overview', { programId: state.programId });
+
+  clear(nodes.view);
+  nodes.view.append(helpBanner('overview'));
+
+  if (!s.totals.all) {
+    nodes.view.append(el('div', { class: 'empty' },
+      'Nothing recorded yet. Browse this target and the overview will fill in.'));
+    return;
+  }
+
+  // Coverage headline — the one number that frames everything else.
+  if (s.coverage !== null) {
+    nodes.view.append(
+      el('div', { class: 'coverage' }, [
+        el('div', { class: 'coverage-bar' }, [
+          el('div', { class: 'coverage-fill', style: `width:${s.coverage}%` }),
+        ]),
+        el('div', { class: 'coverage-label' }, [
+          el('span', { class: 'coverage-pct', text: `${s.coverage}%` }),
+          el('span', { class: 'faint',
+            text: ` of declared surface exercised — ${s.totals.unreached} paths still unreached` }),
+        ]),
+      ]),
+    );
+  }
+
+  // Plain-language insights.
+  if (s.insights.length) {
+    nodes.view.append(
+      el('div', { class: 'insights' }, s.insights.map((insight) =>
+        el('div', { class: `insight ${insight.tone}` }, [
+          el('span', { class: 'insight-tag', text: TONE_LABEL[insight.tone] || insight.tone }),
+          el('span', { class: 'grow', text: insight.text }),
+        ]),
+      )),
+    );
+  }
+
+  // Where the unreached surface clusters.
+  if (s.clusters.length) {
+    nodes.view.append(
+      el('h3', { class: 'section-h', text: 'Where unreached surface clusters' }),
+      el('div', { class: 'cluster-grid' }, s.clusters.map((cluster) =>
+        el('button', {
+          class: 'cluster',
+          title: `Filter Unreached to /${cluster.segment}`,
+          onclick: () => { state.tab = 'unreached'; state.search = cluster.segment; renderHeader(); void renderView(); },
+        }, [
+          el('span', { class: 'cluster-seg mono', text: `/${cluster.segment}` }),
+          el('span', { class: 'cluster-count', text: String(cluster.count) }),
+          cluster.maxInterest >= 4 ? el('span', { class: 'cluster-hot', text: '●' }) : null,
+        ]),
+      )),
+    );
+  }
+
+  // The short list to start on.
+  if (s.topFindings.length) {
+    nodes.view.append(
+      el('h3', { class: 'section-h', text: 'Start here' }),
+      el('div', { class: 'rows' }, s.topFindings.map((obs) =>
+        observationRow({ ...obs, reasons: undefined }, { actions: false }))),
+      el('div', { class: 'row', style: 'margin-top:10px' }, [
+        el('button', { class: 'primary', text: 'Open the full Unreached list',
+          onclick: () => { state.tab = 'unreached'; renderHeader(); void renderView(); } }),
+      ]),
+    );
+  }
+}
+
 async function renderUnreached() {
   const all = await send('view:unreached', { programId: state.programId });
   const rows = all.filter(matchesFilters);
 
   clear(nodes.view);
   nodes.view.append(
-    el('div', { class: 'notice' },
-      'Surface the app\'s own JavaScript declares, that your browsing never touched. '
-      + 'Mined by pattern matching, so expect some noise — dismiss it and it stays gone.'),
+    helpBanner('unreached'),
     filterToolbar([exportButton(rows, 'unreached'), copyButton(rows)]),
   );
 
@@ -265,7 +389,7 @@ async function renderTimeline() {
     return;
   }
 
-  nodes.view.append(filterToolbar());
+  nodes.view.append(helpBanner('timeline'), filterToolbar());
 
   for (const entry of timeline) {
     const appeared = entry.appeared.filter(matchesFilters);
@@ -318,6 +442,7 @@ async function renderSurface() {
       el('div', { class: 'stat' }, [el('div', { class: 'n', text: String(stats.counts.sessions) }), el('div', { class: 'k', text: 'visits' })]),
       el('div', { class: 'stat' }, [el('div', { class: 'n', text: String(stats.counts.assets) }), el('div', { class: 'k', text: 'bundles' })]),
     ]),
+    helpBanner('surface'),
     filterToolbar([exportButton(rows, 'surface'), copyButton(rows)]),
   );
 
@@ -354,7 +479,7 @@ async function renderNotes() {
   });
 
   clear(nodes.view);
-  nodes.view.append(area, status);
+  nodes.view.append(helpBanner('notes'), area, status);
 }
 
 async function renderView() {
@@ -366,7 +491,8 @@ async function renderView() {
   }
 
   try {
-    if (state.tab === 'unreached') await renderUnreached();
+    if (state.tab === 'overview') await renderOverview();
+    else if (state.tab === 'unreached') await renderUnreached();
     else if (state.tab === 'timeline') await renderTimeline();
     else if (state.tab === 'surface') await renderSurface();
     else if (state.tab === 'notes') await renderNotes();
@@ -384,6 +510,7 @@ async function selectProgram(id) {
   state.programId = id;
   state.search = '';
   state.kindFilter = null;
+  state.tab = 'overview';
   await renderSidebar();
   renderHeader();
   await renderView();

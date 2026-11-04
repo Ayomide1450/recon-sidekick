@@ -10,14 +10,11 @@ import {
   ROLE_PATTERN,
   isNoise,
   isFlagNoise,
+  isRoleNoise,
+  classifyPath,
   interestScore,
 } from './rules.js';
 import { normalizeRoute } from './normalize.js';
-
-// A route is a path containing a parameter placeholder, or sitting under a known
-// client-routing prefix. Everything else path-shaped is treated as an endpoint.
-const ROUTE_HINT = /[:*]|\{[^}]+\}|\[[^\]]+\]/;
-const ENDPOINT_HINT = /^\/(?:api|graphql|gql|rest|v\d|internal|rpc|_api|service)/i;
 
 /** Bounded de-duplicating accumulator so a pathological bundle cannot exhaust memory. */
 const MAX_PER_KIND = 2000;
@@ -59,12 +56,11 @@ export function mineBundle(text) {
 
   for (const path of collect(text, PATH_PATTERN)) {
     if (isNoise(path)) continue;
-    const isRoute = ROUTE_HINT.test(path) && !ENDPOINT_HINT.test(path);
     const normalized = normalizeRoute(path);
     if (!normalized) continue;
     // Mined paths have no observed HTTP method. They are stored method-less and the
     // diff layer compares them against the path portion of reached endpoints.
-    add(isRoute ? 'route' : 'endpoint', normalized.value, path);
+    add(classifyPath(normalized.value), normalized.value, path);
   }
 
   for (const op of collect(text, GQL_PATTERN)) {
@@ -77,7 +73,7 @@ export function mineBundle(text) {
   }
 
   for (const role of collect(text, ROLE_PATTERN)) {
-    if (role.length < 4 || role.length > 48) continue;
+    if (isRoleNoise(role)) continue;
     add('role', role);
   }
 

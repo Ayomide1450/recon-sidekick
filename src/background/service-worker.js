@@ -2,6 +2,8 @@
 
 import { programForUrl } from '../lib/scope.js';
 import { unreached, buildTimeline, glance, reconcileReached } from '../lib/diff.js';
+import { interestBreakdown } from '../lib/rules.js';
+import { summarize } from '../lib/summary.js';
 import {
   listPrograms,
   addProgram,
@@ -12,6 +14,7 @@ import {
 } from './programs.js';
 import { recordRuntime, setObservationFlags, clearSessionCache } from './collector.js';
 import { considerAsset, clearMinerCache } from './miner.js';
+import { runMigrations } from './migrate.js';
 import * as db from './db.js';
 
 // The worker can be torn down at any time; re-sync registration whenever it wakes so
@@ -22,6 +25,12 @@ chrome.runtime.onInstalled.addListener(() => { void bootstrap(); });
 async function bootstrap() {
   clearSessionCache();
   clearMinerCache();
+  try {
+    await runMigrations();
+  } catch (error) {
+    // A failed migration must not stop the extension from recording.
+    console.warn('[recon-sidekick] migration failed', error);
+  }
   try {
     await syncContentScripts();
   } catch (error) {
@@ -135,7 +144,21 @@ const handlers = {
 
   async 'view:unreached'({ programId, kinds }) {
     const observations = await db.getAllByProgram('observations', programId);
-    return unreached(observations, { kinds: kinds || null });
+    // Attach the scoring breakdown so each row can explain its own rank on demand.
+    return unreached(observations, { kinds: kinds || null }).map((obs) => ({
+      ...obs,
+      reasons: interestBreakdown(obs.value, { kind: obs.kind }).reasons,
+    }));
+  },
+
+  async 'view:overview'({ programId }) {
+    const [observations, sessions, events, assets] = await Promise.all([
+      db.getAllByProgram('observations', programId),
+      db.getAllByProgram('sessions', programId),
+      db.getAllByProgram('events', programId),
+      db.getAllByProgram('assets', programId),
+    ]);
+    return summarize({ observations, sessions, events, assets });
   },
 
   async 'view:surface'({ programId }) {

@@ -45,6 +45,27 @@ export const GQL_PATTERN =
 export const FLAG_PATTERN =
   /["'`]([a-z][a-z0-9]*(?:[._-][a-z0-9]+){1,4})["'`]/g;
 
+/**
+ * Paths that look like a server API rather than a page the user navigates to.
+ *
+ * Everything else path-shaped is a client route. Defaulting to "route" matters: most
+ * paths in a bundle are pages, and the original default of "endpoint" mislabelled whole
+ * admin sections, which made the route filter useless.
+ */
+export const ENDPOINT_HINT =
+  /^\/(?:api|graphql|gql|rest|rpc|_api|_next\/data|ajax|xhr|service|services|internal|v\d+|wp-json|\.well-known)(?:\/|$)/i;
+
+/**
+ * Classify a mined path. Returns 'endpoint' or 'route'.
+ *
+ * A trailing `.json`/`.xml` also reads as an API even without an /api prefix.
+ */
+export function classifyPath(path) {
+  if (ENDPOINT_HINT.test(path)) return 'endpoint';
+  if (/\.(?:json|xml)$/i.test(path)) return 'endpoint';
+  return 'route';
+}
+
 /** Role and permission constants. */
 export const ROLE_PATTERN =
   /["'`((](ROLE_[A-Z][A-Z0-9_]{2,40}|(?:is|can|has)_?[A-Za-z]*(?:[Aa]dmin|[Oo]wner|[Ss]uperuser|[Mm]oderator|[Ss]taff|[Ss]udo)[A-Za-z_]*|[a-z_]*(?:admin|superuser|moderator|impersonat)[a-z_]*)["'`),]/g;
@@ -145,30 +166,69 @@ export function isFlagNoise(value) {
 }
 
 /**
- * Crude, honest interest score. Not a vulnerability predictor — just an ordering so
- * the good rows surface above the noise tail in the Unreached view.
+ * Generic role words that carry no signal on their own. "admin" matches half the
+ * strings in a typical bundle; "is_admin" is an actual permission check.
  */
-export function interestScore(value, { kind = 'endpoint' } = {}) {
+const BARE_ROLE_WORDS = new Set([
+  'admin', 'admins', 'user', 'users', 'owner', 'owners', 'staff', 'member', 'members',
+  'moderator', 'moderators', 'role', 'roles', 'guest', 'guests', 'manager', 'managers',
+  'permission', 'permissions', 'group', 'groups',
+]);
+
+/** A role candidate needs more shape than a single generic word. */
+export function isRoleNoise(value) {
+  if (typeof value !== 'string') return true;
+  if (value.length < 4 || value.length > 48) return true;
+  const lower = value.toLowerCase();
+  if (BARE_ROLE_WORDS.has(lower)) return true;
+  // Keep anything with structure: ROLE_X, is_admin, isAdmin, org_owner.
+  if (/^ROLE_/.test(value)) return false;
+  if (value.includes('_')) return false;
+  if (/[a-z][A-Z]/.test(value)) return false;
+  // A bare single word survives only if it is not a generic one.
+  return false;
+}
+
+/**
+ * Crude, honest interest score, with the reasons that produced it.
+ *
+ * Returning reasons rather than just a number lets the UI explain *why* a row ranked
+ * where it did, which is the difference between a score the user trusts and a magic
+ * number they ignore.
+ *
+ * @returns {{score: number, reasons: Array<{label: string, weight: number}>}}
+ */
+export function interestBreakdown(value, { kind = 'endpoint' } = {}) {
   const lower = String(value).toLowerCase();
-  let score = 0;
+  const reasons = [];
 
   for (const [term, weight] of INTEREST_TERMS) {
-    if (lower.includes(term)) score += weight;
+    if (lower.includes(term)) reasons.push({ label: `contains "${term}"`, weight });
   }
 
   // Write-shaped verbs are more interesting than reads when unreached.
-  if (/^(?:post|put|patch|delete)\s/i.test(value)) score += 2;
+  if (/^(?:post|put|patch|delete)\s/i.test(value)) {
+    reasons.push({ label: 'write-shaped method', weight: 2 });
+  }
 
   // An older API version on an app that mostly speaks a newer one is a classic find.
-  if (/\/v1\b/.test(lower)) score += 1;
-  if (/\/v0\b/.test(lower)) score += 2;
+  if (/\/v1\b/.test(lower)) reasons.push({ label: 'older API version (v1)', weight: 1 });
+  if (/\/v0\b/.test(lower)) reasons.push({ label: 'older API version (v0)', weight: 2 });
 
-  if (kind === 'role') score += 2;
-  if (kind === 'gqlop') score += 1;
+  if (kind === 'role') reasons.push({ label: 'role or permission string', weight: 2 });
+  if (kind === 'gqlop') reasons.push({ label: 'GraphQL operation', weight: 1 });
 
   // Deeply nested paths tend to be more specific and more interesting.
   const depth = lower.split('/').length - 1;
-  if (depth >= 4) score += 1;
+  if (depth >= 4) reasons.push({ label: 'deeply nested path', weight: 1 });
 
-  return score;
+  return {
+    score: reasons.reduce((sum, reason) => sum + reason.weight, 0),
+    reasons: reasons.sort((a, b) => b.weight - a.weight),
+  };
+}
+
+/** Score only. Kept as the hot path for mining, where reasons are not needed. */
+export function interestScore(value, options) {
+  return interestBreakdown(value, options).score;
 }

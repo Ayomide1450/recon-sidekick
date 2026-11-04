@@ -3,7 +3,7 @@
 Everything needed to fill in the Developer Dashboard. Copy the fields below verbatim.
 
 **Upload file:** `dist/recon-sidekick-0.1.0.zip` (build with `npm run package`)
-**Screenshots:** `dist/store/*.png` — three at 1280×800, the required size
+**Screenshots:** `dist/store/*.png` — four at 1280×800, the required size
 **Privacy policy URL:** `https://github.com/Ayomide1450/recon-sidekick/blob/main/PRIVACY.md`
 **Homepage URL:** `https://github.com/Ayomide1450/recon-sidekick`
 **Category:** Developer Tools
@@ -57,11 +57,15 @@ request or response bodies, no header values, no cookies, and no query parameter
 — parameter names only.
 
 FEATURES
-• Unreached — declared surface your browsing never touched, ranked by interest
+• Overview — a plain-language read of the target: coverage, where untested surface
+  clusters, and callouts for what to look at first
+• Unreached — declared surface your browsing never touched, ranked by interest, with a
+  click-to-explain score so you know why each row ranks where it does
 • Timeline — per-visit history of what appeared and what changed
 • Surface — full searchable inventory, exportable to JSON or line-per-value
 • Notes — free-text working notes per target
 • One-key dismiss for noise, so the list stays useful
+• Every view explains what it is for
 
 OPEN SOURCE
 Source, design notes, and tests: https://github.com/Ayomide1450/recon-sidekick

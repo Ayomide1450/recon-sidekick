@@ -46,7 +46,13 @@
       <section id="view" class="view"></section>
     </main>
 
-    <script>
+    <script type="module">
+      // Use the REAL summary and scoring logic so the preview validates them, not a copy.
+      import { summarize } from '../src/lib/summary.js';
+      import { interestBreakdown } from '../src/lib/rules.js';
+
+      const reasonsFor = (o) => interestBreakdown(o.value, { kind: o.kind }).reasons;
+
       // ---- fixture data -------------------------------------------------
       const DAY = 86400000;
       const now = Date.parse('2026-11-03T14:20:00Z');
@@ -127,7 +133,10 @@
         'notes:get': () => ({ programId: 'p1', text: '', updatedAt: null }),
         'view:unreached': () =>
           OBSERVATIONS.filter((o) => o.source === 'mined' && !o.reached && !o.dismissed)
-            .sort((a, b) => b.interest - a.interest || b.firstSeen - a.firstSeen),
+            .sort((a, b) => b.interest - a.interest || b.firstSeen - a.firstSeen)
+            .map((o) => ({ ...o, reasons: reasonsFor(o) })),
+        'view:overview': () =>
+          summarize({ observations: OBSERVATIONS, sessions: SESSIONS, events: EVENTS, assets: new Array(6).fill({}) }),
         'view:surface': () =>
           [...OBSERVATIONS].sort((a, b) => b.interest - a.interest || a.value.localeCompare(b.value)),
         'view:timeline': () =>
